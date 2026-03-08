@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Body Ownership Illusion — AR Therapy</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07070f;--surf:#0f0f1a;--bdr:#1a1a2e;
+  --acc:#7c6cff;--acc2:#ff6b8a;--acc3:#3de87a;
+  --txt:#e8e8f4;--mut:#555570;--warn:#ffa040
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--bg);color:var(--txt);min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
+.scr{display:none;width:100%;max-width:520px;flex-direction:column;gap:13px;animation:fi .3s ease}
+.scr.on{display:flex}
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:18px 20px}
+h1{font-size:20px;font-weight:700;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center}
+h2{font-size:16px;font-weight:600;margin-bottom:7px}
+p,li{font-size:14px;line-height:1.65;color:#b0b0cc}
+.btn{width:100%;padding:13px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;transition:transform .1s,opacity .2s}
+.btn:active{transform:scale(.97)}
+.bp{background:linear-gradient(135deg,var(--acc),#9b8fff);color:#fff}
+.bs{background:var(--bdr);color:var(--txt)}
+.bd{background:linear-gradient(135deg,#c02850,var(--acc2));color:#fff}
+.bg{background:linear-gradient(135deg,#1a8a4a,var(--acc3));color:#fff}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.lbl{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--mut);margin-bottom:9px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--mut);vertical-align:middle;margin-right:5px}
+.dot.g{background:var(--acc3);box-shadow:0 0 6px var(--acc3)}
+.dot.r{background:#ff4466;box-shadow:0 0 6px #ff4466}
+.dot.p{animation:bl 1s infinite}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.2}}
+#arWrap{position:relative;width:100%;border-radius:16px;overflow:hidden;background:#000;border:1px solid var(--bdr);aspect-ratio:4/3;max-height:420px}
+#camFeed{width:100%;height:100%;object-fit:cover;display:block}
+#arCanvas{position:absolute;inset:0;width:100%;height:100%}
+#recOverlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+#recBadge{display:none;background:rgba(200,0,60,.85);color:#fff;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:700;letter-spacing:.5px;backdrop-filter:blur(4px)}
+#loopBadge{display:none;position:absolute;top:12px;right:12px;background:rgba(124,108,255,.85);color:#fff;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;backdrop-filter:blur(4px)}
+#phaseBadge{position:absolute;top:12px;left:12px;background:rgba(0,0,0,.6);color:#e0e0ff;padding:5px 10px;border-radius:12px;font-size:11px;font-weight:600;backdrop-filter:blur(4px)}
+#recProgressWrap{display:none;position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,.4)}
+#recProgressBar{height:100%;width:0%;background:linear-gradient(90deg,var(--acc),var(--acc2))}
+#countdownTxt{font-size:64px;font-weight:800;color:#fff;text-shadow:0 0 30px var(--acc);display:none}
+#recTimerBadge{display:none;position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:700;backdrop-filter:blur(4px);white-space:nowrap}
+.rec-row{display:flex;align-items:stretch;gap:8px}
+.rec-row .btn{flex:1;padding:13px 10px;font-size:14px}
+.dur-select{background:var(--bg);border:1px solid var(--bdr);border-radius:12px;color:var(--txt);font-size:14px;font-weight:600;padding:0 10px;cursor:pointer;outline:none;min-width:80px;flex-shrink:0}
+.dur-select option{background:var(--surf);color:var(--txt)}
+#customDurWrap{display:none;align-items:center;gap:8px;margin-top:8px}
+#customDurInput{flex:1;background:var(--bg);border:1px solid var(--acc);border-radius:10px;color:var(--txt);font-size:14px;font-weight:600;padding:10px 12px;outline:none;text-align:center}
+#customDurInput::placeholder{color:var(--mut);font-weight:400}
+.dur-hint{font-size:11px;color:var(--mut);margin-top:6px;text-align:center}
+.sl-row{display:flex;align-items:center;gap:10px}
+input[type=range]{flex:1;accent-color:var(--acc)}
+.sl-v{font-size:13px;font-weight:600;color:var(--acc);min-width:30px;text-align:right}
+.i-bar{height:7px;background:var(--bdr);border-radius:4px;overflow:hidden;margin-top:5px}
+.i-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--acc),var(--acc2));border-radius:4px;transition:width .06s}
+.t-ring{position:relative;width:88px;height:88px;flex-shrink:0}
+.t-ring svg{transform:rotate(-90deg)}
+.t-ring circle{fill:none;stroke-width:7}
+.rbg{stroke:var(--bdr)}.rfl{stroke:var(--acc);stroke-linecap:round;transition:stroke-dashoffset .5s linear}
+.tnum{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;font-weight:700}
+.tlbl{font-size:9px;color:var(--mut);letter-spacing:1px;text-transform:uppercase}
+.qi{margin-bottom:15px}
+.qi label{display:block;font-size:14px;margin-bottom:8px;line-height:1.5;color:var(--txt)}
+.sr{display:flex;gap:5px}
+.sb{flex:1;padding:9px 0;border:1px solid var(--bdr);border-radius:8px;background:var(--bg);color:var(--mut);font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+.sb.sel{background:var(--acc);border-color:var(--acc);color:#fff}
+.sll{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:3px}
+.rbig{font-size:52px;font-weight:800;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;line-height:1}
+.rb{height:10px;background:var(--bdr);border-radius:5px;overflow:hidden;margin:10px 0}
+.rf{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width 1s ease}
+hr{border:none;border-top:1px solid var(--bdr);margin:12px 0}
+ol{padding-left:18px}
+ol li{margin-bottom:7px}
+.tog-row{display:flex;align-items:center;justify-content:space-between}
+.tog{position:relative;width:44px;height:24px;cursor:pointer}
+.tog input{opacity:0;width:0;height:0}
+.tog-sl{position:absolute;inset:0;background:var(--bdr);border-radius:12px;transition:.3s}
+.tog input:checked+.tog-sl{background:var(--acc)}
+.tog-sl:before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.3s}
+.tog input:checked+.tog-sl:before{transform:translateX(20px)}
+</style>
+</head>
+<body>
+<!-- HOME -->
+<div id="s-home" class="scr on">
+  <div class="card" style="text-align:center;padding:26px 20px">
+    <div style="font-size:44px;margin-bottom:8px">🧠</div>
+    <h1>Body Ownership Illusion</h1>
+    <p style="color:var(--mut);font-size:13px;margin-top:5px">AR Therapy · Camera passthrough · Virtual hand overlay</p>
+  </div>
+  <div class="card">
+    <p class="lbl">How it works</p>
+    <ol>
+      <li>Point camera at the <strong>body part</strong> (knee, shoulder, wrist)</li>
+      <li>Place your <strong>real hand on the body part</strong> — cover with a thin napkin</li>
+      <li>Select record length, tap <strong>Record</strong> — do one massage stroke</li>
+      <li>Virtual posterized hand <strong>loops over the live camera view</strong></li>
+      <li>Phone vibrates in sync — brain remaps ownership to the virtual hand</li>
+      <li>Tap <strong>Hand Removed</strong> — loop continues, sensation may persist</li>
+    </ol>
+  </div>
+  <div class="card">
+    <p class="lbl">Camera</p>
+    <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr)">
+      <span style="font-size:26px">📷</span>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600" id="camName">Camera not started</div>
+        <div style="font-size:12px;color:var(--mut)" id="camSub"><span class="dot p"></span>Tap Start Camera below</div>
+      </div>
+    </div>
+    <button class="btn bp" style="margin-top:10px" onclick="startCamera()">Start Camera</button>
+  </div>
+  <button class="btn bp" id="continueBtn" onclick="go('s-setup')" disabled>Continue →</button>
+</div>
+<!-- SETUP -->
+<div id="s-setup" class="scr">
+  <div class="card"><h2>⚙️ Session Setup</h2></div>
+  <div id="arWrap">
+    <video id="camFeed" autoplay playsinline muted></video>
+    <canvas id="arCanvas"></canvas>
+    <div id="recOverlay">
+      <div id="countdownTxt"></div>
+      <div id="recBadge">⏺ RECORDING</div>
+      <div id="recTimerBadge"></div>
+    </div>
+    <div id="recProgressWrap"><div id="recProgressBar"></div></div>
+    <div id="phaseBadge">PREVIEW</div>
+    <div id="loopBadge">⟳ LOOPING</div>
+  </div>
+  <div class="card">
+    <p class="lbl">Overlay opacity</p>
+    <div class="sl-row">
+      <span style="font-size:12px;color:var(--mut)">0%</span>
+      <input type="range" id="opacSl" min="0.15" max="0.85" step="0.05" value="0.5" oninput="updOpac(this.value)">
+      <span style="font-size:12px;color:var(--mut)">85%</span>
+      <div class="sl-v" id="opacV">50%</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="tog-row" style="margin-bottom:14px">
+      <div>
+        <div style="font-size:14px;font-weight:600">Posterize effect</div>
+        <div style="font-size:12px;color:var(--mut);margin-top:2px">Flat colors + purple edge highlight</div>
+      </div>
+      <label class="tog"><input type="checkbox" id="postTog" checked onchange="APP.posterize=this.checked"><div class="tog-sl"></div></label>
+    </div>
+    <div class="tog-row">
+      <div>
+        <div style="font-size:14px;font-weight:600">Vibration sync</div>
+        <div style="font-size:12px;color:var(--mut);margin-top:2px">Phone vibrates with loop rhythm</div>
+      </div>
+      <label class="tog"><input type="checkbox" id="vibTog" checked onchange="APP.vibOn=this.checked"><div class="tog-sl"></div></label>
+    </div>
+  </div>
+  <div class="card" style="background:rgba(124,108,255,.07);border-color:rgba(124,108,255,.25)">
+    <p class="lbl" style="color:var(--acc)">Recording instructions</p>
+    <p>1. Point camera at body part — napkin over real hand<br>
+    2. Place massaging hand in frame<br>
+    3. Select duration, press Record<br>
+    4. Do slow massage strokes during recording<br>
+    5. Loop plays automatically</p>
+  </div>
+  <div>
+    <div class="rec-row">
+      <select class="dur-select" id="durSelect" onchange="onDurChange(this.value)">
+        <option value="3">3s</option>
+        <option value="30">30s</option>
+        <option value="60" selected>60s</option>
+        <option value="90">90s</option>
+        <option value="120">120s</option>
+        <option value="custom">Custom…</option>
+      </select>
+      <button class="btn bg" id="recBtn" onclick="startCountdown()">⏺ Record Stroke</button>
+    </div>
+    <div id="customDurWrap">
+      <input type="number" id="customDurInput" min="5" max="600" placeholder="seconds (5–600)">
+      <button class="btn bp" style="flex:0 0 80px;padding:10px 0;font-size:13px" onclick="applyCustom()">Set</button>
+    </div>
+    <div class="dur-hint" id="durHint">Recording: 60 seconds</div>
+  </div>
+  <button class="btn bp" id="sessionBtn" onclick="go('s-session')" disabled>▶ Start Session</button>
+  <button class="btn bs" onclick="go('s-home')">← Back</button>
+</div>
+<!-- SESSION -->
+<div id="s-session" class="scr">
+  <div class="card" style="padding:12px 18px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.8px">ILLUSION ACTIVE</div>
+        <div style="font-size:13px;margin-top:3px;color:#c0c0e0" id="sessionHint">Stare at the virtual hand — let it become yours</div>
+      </div>
+      <div style="font-size:12px;color:var(--mut);display:flex;align-items:center;gap:5px">
+        <span class="dot g p"></span><span id="syncLbl">Synced</span>
+      </div>
+    </div>
+  </div>
+  <div id="arWrap2" style="position:relative;width:100%;border-radius:16px;overflow:hidden;background:#000;border:1px solid var(--bdr);aspect-ratio:4/3;max-height:420px">
+    <canvas id="arCanvas2"></canvas>
+    <div style="position:absolute;top:12px;left:12px;background:rgba(0,0,0,.6);color:#e0e0ff;padding:5px 10px;border-radius:12px;font-size:11px;font-weight:600;backdrop-filter:blur(4px)">ILLUSION</div>
+    <div style="position:absolute;top:12px;right:12px;background:rgba(124,108,255,.85);color:#fff;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;backdrop-filter:blur(4px)">⟳ LOOPING</div>
+    <div id="transferBadge" style="display:none;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(61,232,122,.85);color:#000;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;backdrop-filter:blur(4px);white-space:nowrap">✓ TRANSFER — hand removed</div>
+  </div>
+  <div class="card" style="display:flex;align-items:center;gap:16px;padding:15px 18px">
+    <div class="t-ring">
+      <svg width="88" height="88" viewBox="0 0 88 88">
+        <circle class="rbg" cx="44" cy="44" r="37"/>
+        <circle class="rfl" id="tRing" cx="44" cy="44" r="37" stroke-dasharray="232.5" stroke-dashoffset="0"/>
+      </svg>
+      <div class="tnum"><span id="tNum">90</span><span class="tlbl">SEC</span></div>
+    </div>
+    <div style="flex:1">
+      <div style="display:flex;justify-content:space-between;font-size:12px">
+        <span style="color:var(--mut)">Vibration</span>
+        <span style="color:var(--acc);font-weight:600" id="iPct">0%</span>
+      </div>
+      <div class="i-bar"><div class="i-fill" id="iFill"></div></div>
+      <div style="font-size:11px;color:var(--mut);margin-top:8px" id="phaseNote">Sync phase — let ownership transfer naturally</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px">
+    <button class="btn bg" style="flex:1" onclick="markTransfer()">✋ Hand Removed</button>
+    <button class="btn bd" style="flex:1" onclick="endSession()">⏹ End</button>
+  </div>
+</div>
+<!-- QUESTIONNAIRE -->
+<div id="s-q" class="scr">
+  <div class="card"><h2>How did it feel?</h2><p>Rate honestly — no wrong answers.</p></div>
+  <div class="card" id="qWrap"></div>
+  <button class="btn bp" id="subBtn" onclick="submitQ()" disabled>View Results →</button>
+</div>
+<!-- RESULTS -->
+<div id="s-res" class="scr">
+  <div class="card" style="text-align:center"><h2>Session Complete 🧠</h2></div>
+  <div class="card">
+    <div class="rbig" id="rScore">--</div>
+    <div style="font-size:12px;color:var(--mut);text-align:center;margin-top:4px">Ownership Score (avg 1–5)</div>
+    <div class="rb"><div class="rf" id="rFill" style="width:0%"></div></div>
+    <p style="font-size:13px;color:var(--mut);text-align:center;font-style:italic" id="rInterp"></p>
+  </div>
+  <div class="card" id="rBD"></div>
+  <div class="card">
+    <p class="lbl">Clinical context</p>
+    <p>Body ownership remapping via synchronized visual-tactile stimulation has shown efficacy in phantom limb pain, CRPS, and post-surgical rehabilitation. Sensation persistence after hand removal indicates successful proprioceptive drift.</p>
+    <p style="margin-top:8px">Botvinick & Cohen (1998) · Moseley et al. (2008) · Ehrsson (2012)</p>
+  </div>
+  <button class="btn bp" onclick="again()">🔄 Run Again</button>
+  <button class="btn bs" onclick="go('s-home')">← Home</button>
+</div>
+<script>
+const APP={
+  stream:null,video:null,posterize:true,vibOn:true,opacity:0.50,
+  recDuration:60000,recFPS:20,recording:false,
+  recFrames:[],postFrames:[],loopLen:0,loopIdx:0,loopTimer:null,
+  sessionDur:90,tLeft:90,transferred:false,
+  _ti:null,_vi:null,t:0,ans:{}
+};
+const CIRC=232.5;
+
+function go(id){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  window.scrollTo(0,0);
+  if(id==='s-session')initSession();
+}
+
+function onDurChange(val){
+  const cw=document.getElementById('customDurWrap');
+  if(val==='custom'){
+    cw.style.display='flex';
+    document.getElementById('durHint').textContent='Enter custom duration below';
+  }else{
+    cw.style.display='none';
+    APP.recDuration=parseInt(val)*1000;
+    document.getElementById('durHint').textContent='Recording: '+val+' seconds';
+  }
+}
+
+function applyCustom(){
+  const raw=parseInt(document.getElementById('customDurInput').value);
+  if(isNaN(raw)||raw<5||raw>600){alert('Enter a value between 5 and 600 seconds.');return;}
+  APP.recDuration=raw*1000;
+  document.getElementById('customDurWrap').style.display='none';
+  document.getElementById('durHint').textContent='Recording: '+raw+' seconds (custom)';
+}
+
+async function startCamera(){
+  try{
+    APP.stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false
+    });
+    APP.video=document.getElementById('camFeed');
+    APP.video.srcObject=APP.stream;
+    await APP.video.play();
+    document.getElementById('camName').textContent='Camera active';
+    document.getElementById('camSub').innerHTML='<span class="dot g"></span>Live feed running';
+    document.getElementById('continueBtn').disabled=false;
+    requestAnimationFrame(previewLoop);
+  }catch(e){
+    document.getElementById('camName').textContent='Error: '+e.message;
+    document.getElementById('camSub').innerHTML='<span class="dot r"></span>Check permissions — needs HTTPS or localhost';
+  }
+}
+
+const setupCanvas=document.getElementById('arCanvas');
+const sctx=setupCanvas.getContext('2d',{willReadFrequently:true});
+
+function previewLoop(){
+  if(!APP.video||APP.video.readyState<2){requestAnimationFrame(previewLoop);return;}
+  const wrap=document.getElementById('arWrap');
+  setupCanvas.width=wrap.offsetWidth;
+  setupCanvas.height=wrap.offsetHeight;
+  const W=setupCanvas.width,H=setupCanvas.height;
+  sctx.drawImage(APP.video,0,0,W,H);
+  if(APP.postFrames.length>0&&APP.loopLen>0){
+    const frame=APP.postFrames[APP.loopIdx%APP.loopLen];
+    if(frame){sctx.globalAlpha=APP.opacity;sctx.putImageData(frame,0,0);sctx.globalAlpha=1.0;}
+  }
+  sctx.strokeStyle='rgba(124,108,255,0.15)';sctx.lineWidth=1;
+  [W/3,2*W/3].forEach(x=>{sctx.beginPath();sctx.moveTo(x,0);sctx.lineTo(x,H);sctx.stroke();});
+  [H/3,2*H/3].forEach(y=>{sctx.beginPath();sctx.moveTo(0,y);sctx.lineTo(W,y);sctx.stroke();});
+  requestAnimationFrame(previewLoop);
+}
+
+function posterizeImageData(imgData,levels=4){
+  const d=new Uint8ClampedArray(imgData.data);
+  const step=255/(levels-1);
+  for(let i=0;i<d.length;i+=4){
+    d[i]=Math.round(Math.round(d[i]/step)*step);
+    d[i+1]=Math.round(Math.round(d[i+1]/step)*step);
+    d[i+2]=Math.round(Math.round(d[i+2]/step)*step);
+    d[i]=Math.min(255,d[i]+20);
+    d[i+2]=Math.min(255,d[i+2]+40);
+    const br=(d[i]+d[i+1]+d[i+2])/3;
+    d[i+3]=br<30?0:d[i+3];
+  }
+  return new ImageData(d,imgData.width,imgData.height);
+}
+
+function edgeEnhance(imgData){
+  const src=imgData.data;
+  const out=new Uint8ClampedArray(src);
+  const W=imgData.width,H=imgData.height;
+  for(let y=1;y<H-1;y++){
+    for(let x=1;x<W-1;x++){
+      const i=(y*W+x)*4,ab=((y-1)*W+x)*4,bl=((y+1)*W+x)*4,lt=(y*W+(x-1))*4,rt=(y*W+(x+1))*4;
+      const gx=Math.abs(src[rt]-src[lt]),gy=Math.abs(src[bl]-src[ab]);
+      const edge=Math.min(255,gx+gy);
+      if(edge>60){out[i]=180;out[i+1]=140;out[i+2]=255;out[i+3]=Math.min(255,edge*1.5);}
+    }
+  }
+  return new ImageData(out,W,H);
+}
+
+function startCountdown(){
+  document.getElementById('recBtn').disabled=true;
+  const cd=document.getElementById('countdownTxt');
+  cd.style.display='block';
+  document.getElementById('recBadge').style.display='none';
+  let count=3;cd.textContent=count;
+  const iv=setInterval(()=>{
+    count--;
+    if(count>0){cd.textContent=count;}
+    else{clearInterval(iv);cd.style.display='none';beginRecording();}
+  },1000);
+}
+
+function beginRecording(){
+  APP.recording=true;APP.recFrames=[];
+  document.getElementById('recBadge').style.display='block';
+  document.getElementById('phaseBadge').textContent='⏺ RECORDING';
+  const prog=document.getElementById('recProgressWrap');
+  const bar=document.getElementById('recProgressBar');
+  const tb=document.getElementById('recTimerBadge');
+  prog.style.display='block';bar.style.width='0%';tb.style.display='block';
+  const startTime=Date.now();
+  const progIv=setInterval(()=>{
+    const elapsed=Date.now()-startTime;
+    const pct=Math.min(100,(elapsed/APP.recDuration)*100);
+    bar.style.width=pct+'%';
+    const rem=Math.max(0,Math.ceil((APP.recDuration-elapsed)/1000));
+    tb.textContent='⏺ '+rem+'s remaining';
+  },100);
+  const interval=1000/APP.recFPS;
+  const recCanvas=document.createElement('canvas');
+  const wrap=document.getElementById('arWrap');
+  recCanvas.width=wrap.offsetWidth;recCanvas.height=wrap.offsetHeight;
+  const rctx=recCanvas.getContext('2d',{willReadFrequently:true});
+  const recIv=setInterval(()=>{
+    rctx.drawImage(APP.video,0,0,recCanvas.width,recCanvas.height);
+    APP.recFrames.push(rctx.getImageData(0,0,recCanvas.width,recCanvas.height));
+  },interval);
+  setTimeout(()=>{
+    clearInterval(recIv);clearInterval(progIv);
+    APP.recording=false;
+    document.getElementById('recBadge').style.display='none';
+    tb.style.display='none';prog.style.display='none';bar.style.width='0%';
+    document.getElementById('phaseBadge').textContent='⚙️ PROCESSING';
+    processFrames(recCanvas.width,recCanvas.height);
+  },APP.recDuration);
+}
+
+function processFrames(W,H){
+  APP.postFrames=APP.recFrames.map(frame=>{
+    let p=posterizeImageData(frame);
+    if(APP.posterize)p=edgeEnhance(p);
+    return p;
+  });
+  APP.loopLen=APP.postFrames.length;APP.loopIdx=0;
+  startLoop();
+  document.getElementById('phaseBadge').textContent='⟳ PREVIEW';
+  document.getElementById('loopBadge').style.display='block';
+  document.getElementById('sessionBtn').disabled=false;
+  document.getElementById('recBtn').disabled=false;
+  document.getElementById('recBtn').textContent='⏺ Re-record';
+}
+
+function startLoop(){
+  if(APP.loopTimer)clearInterval(APP.loopTimer);
+  APP.loopTimer=setInterval(()=>{APP.loopIdx=(APP.loopIdx+1)%APP.loopLen;},1000/APP.recFPS);
+}
+
+const sessCanvas=document.getElementById('arCanvas2');
+const sxctx=sessCanvas.getContext('2d',{willReadFrequently:true});
+let sessAnimId=null;
+
+function initSession(){
+  APP.tLeft=APP.sessionDur;APP.transferred=false;APP.t=0;
+  document.getElementById('tNum').textContent=APP.tLeft;
+  document.getElementById('transferBadge').style.display='none';
+  document.getElementById('phaseNote').textContent='Sync phase — let ownership transfer naturally';
+  const wrap2=document.getElementById('arWrap2');
+  sessCanvas.width=wrap2.offsetWidth;sessCanvas.height=wrap2.offsetHeight;
+  APP._ti=setInterval(()=>{
+    APP.tLeft--;
+    document.getElementById('tNum').textContent=APP.tLeft;
+    updRing(APP.tLeft,APP.sessionDur);
+    if(APP.tLeft<=0)endSession();
+  },1000);
+  APP._vi=setInterval(vibTick,16);
+  function renderSess(){
+    if(!document.getElementById('s-session').classList.contains('on'))return;
+    drawSessionFrame();
+    sessAnimId=requestAnimationFrame(renderSess);
+  }
+  renderSess();
+}
+
+function drawSessionFrame(){
+  const W=sessCanvas.width,H=sessCanvas.height;
+  sxctx.clearRect(0,0,W,H);
+  if(APP.video&&APP.video.readyState>=2){
+    sxctx.drawImage(APP.video,0,0,W,H);
+  }else{
+    sxctx.fillStyle='#0a0a14';sxctx.fillRect(0,0,W,H);
+  }
+  if(APP.postFrames.length>0){
+    const frame=APP.postFrames[APP.loopIdx%APP.loopLen];
+    if(frame){sxctx.globalAlpha=APP.opacity;sxctx.putImageData(frame,0,0);sxctx.globalAlpha=1.0;}
+  }
+  const inten=getCurrentIntensity();
+  if(inten>0.05){
+    const cx2=W/2,cy2=H/2;
+    const grd=sxctx.createRadialGradient(cx2,cy2,10,cx2,cy2,Math.min(W,H)*.55);
+    const a=Math.round(inten*55).toString(16).padStart(2,'0');
+    grd.addColorStop(0,'#7c6cff'+a);grd.addColorStop(1,'#7c6cff00');
+    sxctx.fillStyle=grd;sxctx.fillRect(0,0,W,H);
+  }
+  if(inten>0.4){
+    const scanY=(APP.t*0.08)%H;
+    sxctx.beginPath();sxctx.moveTo(0,scanY);sxctx.lineTo(W,scanY);
+    sxctx.strokeStyle=`rgba(200,180,255,${inten*.3})`;sxctx.lineWidth=1.5;sxctx.stroke();
+  }
+  if(APP.transferred){sxctx.fillStyle='rgba(61,232,122,0.07)';sxctx.fillRect(0,0,W,H);}
+  APP.t+=16;
+}
+
+function getCurrentIntensity(){
+  return APP.loopLen>0?0.2+0.7*Math.sin((APP.loopIdx/APP.loopLen)*Math.PI):0;
+}
+
+let lastVib=0;
+function vibTick(){
+  if(!APP.vibOn)return;
+  const inten=getCurrentIntensity();
+  document.getElementById('iFill').style.width=Math.round(inten*100)+'%';
+  document.getElementById('iPct').textContent=Math.round(inten*100)+'%';
+  const now=Date.now();
+  if(inten>0.25&&now-lastVib>100){
+    if('vibrate' in navigator)navigator.vibrate(Math.round(80*inten));
+    lastVib=now;
+  }
+}
+
+function markTransfer(){
+  APP.transferred=true;
+  document.getElementById('transferBadge').style.display='block';
+  document.getElementById('sessionHint').textContent='Hand removed — feel the loop continue';
+  document.getElementById('phaseNote').textContent='Post-transfer phase — persistence of sensation';
+  document.getElementById('syncLbl').textContent='Loop persisting';
+}
+
+function endSession(){
+  clearInterval(APP._ti);clearInterval(APP._vi);
+  if(sessAnimId)cancelAnimationFrame(sessAnimId);
+  if('vibrate' in navigator)navigator.vibrate(0);
+  buildQ();go('s-q');
+}
+
+function updOpac(v){APP.opacity=parseFloat(v);document.getElementById('opacV').textContent=Math.round(v*100)+'%';}
+function updRing(l,t){document.getElementById('tRing').style.strokeDashoffset=CIRC*(1-l/t);}
+
+const QS=[
+  {id:'q1',t:'I felt as if the virtual hand on screen was my own hand.'},
+  {id:'q2',t:'I felt the sensation coming from the screen location rather than my real hand.'},
+  {id:'q3',t:'My real hand felt as if it was no longer part of my body.'},
+  {id:'q4',t:'After removing my hand, I still felt the massage continuing.'},
+  {id:'q5',t:'The virtual hand appeared to belong to my body.'},
+  {id:'q6',t:'Overall the illusion was convincing.'},
+];
+
+function buildQ(){
+  APP.ans={};
+  const c=document.getElementById('qWrap');c.innerHTML='';
+  QS.forEach((q,i)=>{
+    if(i>0)c.innerHTML+='<hr style="border:none;border-top:1px solid var(--bdr);margin:12px 0">';
+    const d=document.createElement('div');d.className='qi';
+    d.innerHTML=`<label>${i+1}. ${q.t}</label><div class="sr" id="${q.id}"></div><div class="sll"><span>Not at all</span><span>Strongly</span></div>`;
+    c.appendChild(d);
+    for(let v=1;v<=5;v++){
+      const b=document.createElement('button');b.className='sb';b.textContent=v;
+      b.onclick=()=>{
+        document.querySelectorAll(`#${q.id} .sb`).forEach(x=>x.classList.remove('sel'));
+        b.classList.add('sel');APP.ans[q.id]=v;
+        document.getElementById('subBtn').disabled=Object.keys(APP.ans).length<QS.length;
+      };
+      document.getElementById(q.id).appendChild(b);
+    }
+  });
+  document.getElementById('subBtn').disabled=true;
+}
+
+function submitQ(){
+  const vals=Object.values(APP.ans);
+  showRes(vals.reduce((a,b)=>a+b,0)/vals.length);
+}
+
+function showRes(avg){
+  document.getElementById('rScore').textContent=avg.toFixed(1);
+  setTimeout(()=>document.getElementById('rFill').style.width=(((avg-1)/4)*100)+'%',100);
+  const interps=['','Minimal ownership transfer.','Mild — partial effect.','Moderate — illusion present.','Strong ownership shift.','Very strong — highly convincing.'];
+  document.getElementById('rInterp').textContent=interps[Math.round(avg)]||'';
+  const bd=document.getElementById('rBD');
+  const lbls=['Ownership','Touch Location','Disownership','Post-transfer','Visual ownership','Overall'];
+  bd.innerHTML='<p class="lbl">Response Breakdown</p>';
+  QS.forEach((q,i)=>{
+    const v=APP.ans['q'+(i+1)]||0,pct=((v-1)/4)*100;
+    bd.innerHTML+=`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:12px;color:var(--mut)">${lbls[i]}</span><span style="font-size:12px;font-weight:600">${v}/5</span></div><div class="rb" style="margin:0"><div class="rf" style="width:${pct}%;transition:width .8s ease ${i*.1}s"></div></div></div>`;
+  });
+  go('s-res');
+}
+
+function again(){
+  APP.ans={};APP.transferred=false;APP.recFrames=[];APP.postFrames=[];APP.loopLen=0;
+  document.getElementById('sessionBtn').disabled=true;
+  document.getElementById('recBtn').textContent='⏺ Record Stroke';
+  document.getElementById('recBtn').disabled=false;
+  document.getElementById('loopBadge').style.display='none';
+  document.getElementById('phaseBadge').textContent='PREVIEW';
+  document.getElementById('durHint').textContent='Recording: 60 seconds';
+  document.getElementById('durSelect').value='60';
+  APP.recDuration=60000;
+  go('s-setup');
+}
+
+buildQ();
+</script>
+</body>
+</html>
